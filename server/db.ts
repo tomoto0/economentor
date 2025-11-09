@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, learningSessions, chatLogs, InsertLearningSession, InsertChatLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,74 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Learning Sessions queries
+export async function createLearningSession(session: InsertLearningSession) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+  
+  try {
+    await db.insert(learningSessions).values(session);
+    return session;
+  } catch (error) {
+    console.error("[Database] Failed to create learning session:", error);
+    throw error;
+  }
+}
+
+export async function getLearningSession(sessionId: string) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+  
+  try {
+    const result = await db
+      .select()
+      .from(learningSessions)
+      .where(eq(learningSessions.id, sessionId))
+      .limit(1);
+    
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[Database] Failed to get learning session:", error);
+    throw error;
+  }
+}
+
+// Chat Logs queries
+export async function addChatLog(log: InsertChatLog) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+  
+  try {
+    const result = await db.insert(chatLogs).values(log);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to add chat log:", error);
+    throw error;
+  }
+}
+
+export async function getChatLogs(sessionId: string) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database not available");
+  }
+  
+  try {
+    const result = await db
+      .select()
+      .from(chatLogs)
+      .where(eq(chatLogs.sessionId, sessionId))
+      .orderBy(chatLogs.createdAt);
+    
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to get chat logs:", error);
+    throw error;
+  }
+}
