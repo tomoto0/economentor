@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, learningSessions, chatLogs, InsertLearningSession, InsertChatLog } from "../drizzle/schema";
+import { InsertUser, users, learningSessions, chatLogs, practiceProblems, quizzes, learningNotes, InsertLearningSession, InsertChatLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -159,4 +159,97 @@ export async function getChatLogs(sessionId: string) {
     console.error("[Database] Failed to get chat logs:", error);
     throw error;
   }
+}
+
+
+// Practice problems queries
+export async function createPracticeProblem(
+  sessionId: string,
+  problemText: string,
+  solution: string,
+  difficulty: "easy" | "medium" | "hard" = "medium"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.insert(practiceProblems).values({
+    sessionId,
+    problemText,
+    solution,
+    difficulty,
+  });
+}
+
+export async function getPracticeProblems(sessionId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(practiceProblems).where(eq(practiceProblems.sessionId, sessionId));
+}
+
+// Quiz queries
+export async function createQuiz(
+  sessionId: string,
+  question: string,
+  options: string[],
+  correctAnswer: string,
+  explanation: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.insert(quizzes).values({
+    sessionId,
+    question,
+    options: JSON.stringify(options),
+    correctAnswer,
+    explanation,
+  });
+}
+
+export async function getQuizzes(sessionId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(quizzes).where(eq(quizzes.sessionId, sessionId));
+}
+
+export async function updateQuizAnswer(
+  quizId: number,
+  userAnswer: string,
+  isCorrect: boolean
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.update(quizzes)
+    .set({ userAnswer, isCorrect: isCorrect ? 1 : 0 })
+    .where(eq(quizzes.id, quizId));
+}
+
+// Learning notes queries
+export async function createNote(
+  sessionId: string,
+  noteText: string,
+  category?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.insert(learningNotes).values({
+    sessionId,
+    noteText,
+    category,
+  });
+}
+
+export async function getNotes(sessionId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(learningNotes).where(eq(learningNotes.sessionId, sessionId));
+}
+
+export async function deleteNote(noteId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.delete(learningNotes).where(eq(learningNotes.id, noteId));
 }

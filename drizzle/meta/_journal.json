@@ -15,6 +15,13 @@
       "when": 1762615566599,
       "tag": "0001_slim_donald_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1762866783962,
+      "tag": "0002_rich_micromax",
+      "breakpoints": true
     }
   ]
 }

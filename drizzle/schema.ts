@@ -55,3 +55,58 @@ export const chatLogs = mysqlTable("chat_logs", {
 
 export type ChatLog = typeof chatLogs.$inferSelect;
 export type InsertChatLog = typeof chatLogs.$inferInsert;
+
+/**
+ * Practice problems table - stores AI-generated practice problems
+ */
+export const practiceProblems = mysqlTable("practice_problems", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 })
+    .notNull()
+    .references(() => learningSessions.id, { onDelete: "cascade" }),
+  problemText: text("problemText").notNull(), // The problem statement
+  solution: text("solution"), // The solution/answer
+  difficulty: mysqlEnum("difficulty", ["easy", "medium", "hard"]).default("medium").notNull(),
+  solved: int("solved").default(0).notNull(), // 0 = not solved, 1 = solved
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PracticeProblem = typeof practiceProblems.$inferSelect;
+export type InsertPracticeProblem = typeof practiceProblems.$inferInsert;
+
+/**
+ * Quiz table - stores quiz questions and answers
+ */
+export const quizzes = mysqlTable("quizzes", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 })
+    .notNull()
+    .references(() => learningSessions.id, { onDelete: "cascade" }),
+  question: text("question").notNull(),
+  options: text("options").notNull(), // JSON array of options
+  correctAnswer: varchar("correctAnswer", { length: 255 }).notNull(),
+  explanation: text("explanation"), // Explanation of the correct answer
+  userAnswer: varchar("userAnswer", { length: 255 }), // User's answer
+  isCorrect: int("isCorrect"), // 1 = correct, 0 = incorrect, null = not answered
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Quiz = typeof quizzes.$inferSelect;
+export type InsertQuiz = typeof quizzes.$inferInsert;
+
+/**
+ * Learning notes table - stores user's notes and highlights
+ */
+export const learningNotes = mysqlTable("learning_notes", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 })
+    .notNull()
+    .references(() => learningSessions.id, { onDelete: "cascade" }),
+  noteText: text("noteText").notNull(), // The note content
+  category: varchar("category", { length: 100 }), // e.g., "important", "example", "formula"
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LearningNote = typeof learningNotes.$inferSelect;
+export type InsertLearningNote = typeof learningNotes.$inferInsert;

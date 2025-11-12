@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, Plus } from "lucide-react";
-import { trpc } from "@/_core/trpc";
+import { Send, Loader2, Plus, Download, FileText } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { nanoid } from "nanoid";
 import { Streamdown } from "streamdown";
 import MathGraph from "@/components/MathGraph";
+import LearningTabs from "@/components/LearningTabs";
 
 interface GraphData {
   type: "line" | "bar" | "scatter" | "area";
@@ -42,6 +43,12 @@ export default function Home() {
   const [sessionStarted, setSessionStarted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // tRPC mutations
+  const createSessionMutation = trpc.sessions.create.useMutation();
+  const addMessageMutation = trpc.sessions.addMessage.useMutation();
+  const sendMessageMutation = trpc.chat.sendMessage.useMutation();
+  const getChatLogsQuery = trpc.sessions.getChatLogs.useQuery;
+
   // Initialize session from localStorage
   useEffect(() => {
     const savedSessionId = localStorage.getItem("mathMentorSessionId");
@@ -58,22 +65,17 @@ export default function Home() {
     }
   }, [messages]);
 
-  const createSessionMutation = trpc.sessions.create.useMutation();
-  const getChatLogsQuery = trpc.sessions.getChatLogs.useQuery;
-  const addMessageMutation = trpc.sessions.addMessage.useMutation();
-
   const loadSession = async (id: string) => {
     try {
-      const response = await fetch(`/api/trpc/sessions.getChatLogs?input=${JSON.stringify({ sessionId: id })}`);
-      if (response.ok) {
-        const data = await response.json();
-        const logs = data.result?.data || [];
+      // Use the query hook to fetch chat logs
+      const result = await getChatLogsQuery({ sessionId: id });
+      if (result.data) {
         setMessages(
-          logs.map((log: any) => ({
+          result.data.map((log) => ({
             id: `${log.id}`,
             sender: log.sender,
             content: log.content,
-            contentType: log.contentType,
+            contentType: log.contentType as "text" | "json" | "markdown",
           }))
         );
       }
@@ -108,48 +110,25 @@ export default function Home() {
       };
 
       setMessages([userMessage]);
-      try {
-        await addMessageMutation.mutateAsync({
-          sessionId: newSessionId,
-          sender: "user",
-          content: userMessage.content,
-          contentType: "text",
-        });
-      } catch (error) {
-        console.error("Failed to save user message:", error);
-      }
+      await addMessageMutation.mutateAsync({
+        sessionId: newSessionId,
+        sender: "user",
+        content: userMessage.content,
+        contentType: "text",
+      });
 
-      // Call AI API to get response
+      // Get AI response
       let assistantContent = "申し訳ありません。AI応答の取得に失敗しました。";
       let assistantContentType: "text" | "markdown" = "text";
-      let graphData: GraphData | undefined = undefined;
 
       try {
-        const aiResponse = await fetch("/api/trpc/chat.sendMessage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            json: {
-              sessionId: newSessionId,
-              message: userMessage.content,
-            },
-          }),
+        const aiResponse = await sendMessageMutation.mutateAsync({
+          sessionId: newSessionId,
+          message: userMessage.content,
         });
 
-        if (aiResponse.ok) {
-          const data = await aiResponse.json();
-          assistantContent = data.result?.data?.response || assistantContent;
-          assistantContentType = data.result?.data?.contentType || "markdown";
-          
-          // Check if response contains graph data
-          if (data.result?.data?.graphData) {
-            try {
-              graphData = JSON.parse(data.result.data.graphData);
-            } catch (e) {
-              console.error("Failed to parse graph data:", e);
-            }
-          }
-        }
+        assistantContent = aiResponse.response || assistantContent;
+        assistantContentType = aiResponse.contentType || "markdown";
       } catch (error) {
         console.error("Failed to get AI response:", error);
       }
@@ -159,7 +138,6 @@ export default function Home() {
         sender: "assistant",
         content: assistantContent,
         contentType: assistantContentType,
-        graphData,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -168,7 +146,7 @@ export default function Home() {
           sessionId: newSessionId,
           sender: "assistant",
           content: assistantMessage.content,
-          contentType: "markdown",
+          contentType: assistantContentType,
         });
       } catch (error) {
         console.error("Failed to save assistant message:", error);
@@ -195,48 +173,25 @@ export default function Home() {
       setMessages((prev) => [...prev, userMessage]);
       setInputMessage("");
 
-      try {
-        await addMessageMutation.mutateAsync({
-          sessionId,
-          sender: "user",
-          content: userMessage.content,
-          contentType: "text",
-        });
-      } catch (error) {
-        console.error("Failed to save user message:", error);
-      }
+      await addMessageMutation.mutateAsync({
+        sessionId,
+        sender: "user",
+        content: userMessage.content,
+        contentType: "text",
+      });
 
-      // Call AI API to get response
+      // Get AI response
       let assistantContent = "申し訳ありません。AI応答の取得に失敗しました。";
       let assistantContentType: "text" | "markdown" = "text";
-      let graphData: GraphData | undefined = undefined;
 
       try {
-        const aiResponse = await fetch("/api/trpc/chat.sendMessage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            json: {
-              sessionId,
-              message: inputMessage,
-            },
-          }),
+        const aiResponse = await sendMessageMutation.mutateAsync({
+          sessionId,
+          message: inputMessage,
         });
 
-        if (aiResponse.ok) {
-          const data = await aiResponse.json();
-          assistantContent = data.result?.data?.response || assistantContent;
-          assistantContentType = data.result?.data?.contentType || "markdown";
-          
-          // Check if response contains graph data
-          if (data.result?.data?.graphData) {
-            try {
-              graphData = JSON.parse(data.result.data.graphData);
-            } catch (e) {
-              console.error("Failed to parse graph data:", e);
-            }
-          }
-        }
+        assistantContent = aiResponse.response || assistantContent;
+        assistantContentType = aiResponse.contentType || "markdown";
       } catch (error) {
         console.error("Failed to get AI response:", error);
       }
@@ -246,7 +201,6 @@ export default function Home() {
         sender: "assistant",
         content: assistantContent,
         contentType: assistantContentType,
-        graphData,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -255,7 +209,7 @@ export default function Home() {
           sessionId,
           sender: "assistant",
           content: assistantMessage.content,
-          contentType: "text",
+          contentType: assistantContentType,
         });
       } catch (error) {
         console.error("Failed to save assistant message:", error);
@@ -274,6 +228,26 @@ export default function Home() {
     setInputMessage("");
     setSessionStarted(false);
     localStorage.removeItem("mathMentorSessionId");
+  };
+
+  const exportAsText = () => {
+    let text = `Math Mentor - 学習記録\n`;
+    text += `トピック: ${topic}\n`;
+    text += `作成日時: ${new Date().toLocaleString("ja-JP")}\n`;
+    text += `\n${"=".repeat(50)}\n\n`;
+
+    messages.forEach((msg) => {
+      text += `${msg.sender === "user" ? "【ユーザー】" : "【AI】"}\n`;
+      text += `${msg.content}\n\n`;
+    });
+
+    const element = document.createElement("a");
+    element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(text));
+    element.setAttribute("download", `math-mentor-${Date.now()}.txt`);
+    element.style.display = "none";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   if (!sessionStarted) {
@@ -317,21 +291,34 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Math Mentor</h1>
           <p className="text-sm text-gray-600">{topic}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={startNewSession}>
-          <Plus className="mr-2 h-4 w-4" />
-          新しいセッション
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportAsText}>
+            <Download className="mr-2 h-4 w-4" />
+            テキスト保存
+          </Button>
+          <Button variant="outline" size="sm" onClick={startNewSession}>
+            <Plus className="mr-2 h-4 w-4" />
+            新しいセッション
+          </Button>
+        </div>
       </div>
 
+      {/* Tabs for learning features */}
+      {sessionId && (
+        <div className="bg-white border-b border-gray-200 p-4 overflow-y-auto flex-shrink-0" style={{ maxHeight: '300px' }}>
+          <LearningTabs sessionId={sessionId} topic={topic} />
+        </div>
+      )}
+
       {/* Chat Area */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4 overflow-hidden">
         <div className="space-y-4 max-w-4xl mx-auto">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-64 text-gray-500">
@@ -371,7 +358,7 @@ export default function Home() {
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="bg-white border-t border-gray-200 p-4">
+      <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex gap-2">
           <Input
             placeholder="質問を入力してください..."
