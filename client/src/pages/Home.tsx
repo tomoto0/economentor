@@ -290,6 +290,22 @@ export default function Home() {
     );
   }
 
+  const handleAddMessageFromLearning = (content: string, sender: "user" | "assistant") => {
+    const newMessage = {
+      id: nanoid(),
+      sender,
+      content,
+      contentType: "markdown" as const,
+    };
+    setMessages((prev) => [...prev, newMessage]);
+    addMessageMutation.mutate({
+      sessionId: sessionId!,
+      sender,
+      content,
+      contentType: "markdown",
+    });
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
@@ -312,8 +328,12 @@ export default function Home() {
 
       {/* Tabs for learning features */}
       {sessionId && (
-        <div className="bg-white border-b border-gray-200 p-4 overflow-y-auto flex-shrink-0" style={{ maxHeight: '300px' }}>
-          <LearningTabs sessionId={sessionId} topic={topic} />
+        <div className="bg-white border-b border-gray-200 p-4 overflow-y-auto flex-shrink-0" style={{ maxHeight: '280px' }}>
+          <LearningTabs 
+            sessionId={sessionId} 
+            topic={topic}
+            onAddMessage={handleAddMessageFromLearning}
+          />
         </div>
       )}
 
