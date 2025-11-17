@@ -328,7 +328,7 @@ export default function Home() {
 
       {/* Tabs for learning features */}
       {sessionId && (
-        <div className="bg-white border-b border-gray-200 p-4 overflow-y-auto flex-shrink-0" style={{ maxHeight: '280px' }}>
+        <div className="bg-white border-b border-gray-200 p-4 overflow-y-auto flex-shrink-0 relative z-0" style={{ maxHeight: '280px' }}>
           <LearningTabs 
             sessionId={sessionId} 
             topic={topic}
@@ -338,7 +338,7 @@ export default function Home() {
       )}
 
       {/* Chat Area */}
-      <ScrollArea className="flex-1 p-4 overflow-hidden">
+      <ScrollArea className="flex-1 p-4 overflow-hidden relative z-10 bg-gray-50">
         <div className="space-y-4 max-w-4xl mx-auto">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-64 text-gray-500">
@@ -353,10 +353,10 @@ export default function Home() {
                 }`}
               >
                 <div
-                  className={`max-w-2xl rounded-lg p-4 ${
+                  className={`max-w-2xl rounded-lg p-4 relative z-10 ${
                     message.sender === "user"
-                      ? "bg-blue-500 text-white"
-                      : "bg-white text-gray-900 border border-gray-200"
+                      ? "bg-blue-500 text-white shadow-md"
+                      : "bg-white text-gray-900 border border-gray-200 shadow-md"
                   }`}
                 >
                   {message.contentType === "markdown" ? (
