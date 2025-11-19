@@ -71,3 +71,4 @@
 - [x] React Context エラーを修正
 - [x] tRPC クライアント初期化の確認
 - [x] LearningTabs コンポーネントの Context 依存性を修正
+- [x] useState インポートを追加して修正完了
