@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, learningSessions, chatLogs, practiceProblems, quizzes, learningNotes, InsertLearningSession, InsertChatLog } from "../drizzle/schema";
+import { InsertUser, users, learningSessions, chatLogs, practiceProblems, quizzes, learningNotes, sessionPerformance, InsertLearningSession, InsertChatLog, InsertSessionPerformance } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -252,4 +252,98 @@ export async function deleteNote(noteId: number) {
   if (!db) throw new Error("Database not available");
   
   return db.delete(learningNotes).where(eq(learningNotes.id, noteId));
+}
+
+
+// Session Performance Tracking Functions
+
+export async function getOrCreateSessionPerformance(sessionId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Try to find existing performance record
+  const existing = await db
+    .select()
+    .from(sessionPerformance)
+    .where(eq(sessionPerformance.sessionId, sessionId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  // Create new performance record
+  const newPerformance: InsertSessionPerformance = {
+    sessionId,
+    totalProblems: 0,
+    correctAnswers: 0,
+    accuracyRate: 0,
+    currentDifficulty: "medium",
+  };
+
+  await db.insert(sessionPerformance).values(newPerformance);
+  
+  const created = await db
+    .select()
+    .from(sessionPerformance)
+    .where(eq(sessionPerformance.sessionId, sessionId))
+    .limit(1);
+
+  return created[0];
+}
+
+export async function updateSessionPerformance(
+  sessionId: string,
+  isCorrect: boolean
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const performance = await getOrCreateSessionPerformance(sessionId);
+  
+  const newTotal = performance.totalProblems + 1;
+  const newCorrect = isCorrect ? performance.correctAnswers + 1 : performance.correctAnswers;
+  const newAccuracy = Math.round((newCorrect / newTotal) * 100);
+
+  // Determine new difficulty based on accuracy
+  let newDifficulty = performance.currentDifficulty;
+  if (newTotal >= 3) {
+    if (newAccuracy >= 80) {
+      newDifficulty = "hard";
+    } else if (newAccuracy >= 60) {
+      newDifficulty = "medium";
+    } else {
+      newDifficulty = "easy";
+    }
+  }
+
+  await db
+    .update(sessionPerformance)
+    .set({
+      totalProblems: newTotal,
+      correctAnswers: newCorrect,
+      accuracyRate: newAccuracy,
+      currentDifficulty: newDifficulty,
+    })
+    .where(eq(sessionPerformance.sessionId, sessionId));
+
+  return {
+    totalProblems: newTotal,
+    correctAnswers: newCorrect,
+    accuracyRate: newAccuracy,
+    currentDifficulty: newDifficulty,
+  };
+}
+
+export async function getSessionPerformance(sessionId: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(sessionPerformance)
+    .where(eq(sessionPerformance.sessionId, sessionId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
 }

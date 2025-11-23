@@ -110,3 +110,20 @@ export const learningNotes = mysqlTable("learning_notes", {
 
 export type LearningNote = typeof learningNotes.$inferSelect;
 export type InsertLearningNote = typeof learningNotes.$inferInsert;
+/**
+ * Session performance tracking - stores accuracy rate and difficulty level per session
+ */
+export const sessionPerformance = mysqlTable("session_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 })
+    .notNull()
+    .references(() => learningSessions.id, { onDelete: "cascade" }),
+  totalProblems: int("totalProblems").default(0).notNull(), // Total problems attempted
+  correctAnswers: int("correctAnswers").default(0).notNull(), // Number of correct answers
+  accuracyRate: int("accuracyRate").default(0).notNull(), // Percentage (0-100)
+  currentDifficulty: mysqlEnum("currentDifficulty", ["easy", "medium", "hard"]).default("medium").notNull(), // Current difficulty level
+  lastUpdated: timestamp("lastUpdated").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SessionPerformance = typeof sessionPerformance.$inferSelect;
+export type InsertSessionPerformance = typeof sessionPerformance.$inferInsert;

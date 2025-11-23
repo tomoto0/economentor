@@ -11,6 +11,9 @@ import {
   getNotes,
   deleteNote,
   getChatLogs,
+  getOrCreateSessionPerformance,
+  updateSessionPerformance,
+  getSessionPerformance,
 } from "../db";
 
 /**
@@ -292,6 +295,40 @@ Respond ONLY with valid JSON, no other text.`,
       } catch (error) {
         console.error("Failed to delete note:", error);
         throw new Error("Failed to delete note");
+      }
+    }),
+
+  // Get session performance
+  getSessionPerformance: publicProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const performance = await getSessionPerformance(input.sessionId);
+        if (!performance) {
+          return await getOrCreateSessionPerformance(input.sessionId);
+        }
+        return performance;
+      } catch (error) {
+        console.error("Failed to get session performance:", error);
+        throw new Error("Failed to get session performance");
+      }
+    }),
+
+  // Update session performance after answering
+  updateSessionPerformance: publicProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        isCorrect: z.boolean(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const updated = await updateSessionPerformance(input.sessionId, input.isCorrect);
+        return updated;
+      } catch (error) {
+        console.error("Failed to update session performance:", error);
+        throw new Error("Failed to update session performance");
       }
     }),
 });
