@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,77 +11,169 @@ interface LearningTabsProps {
   onAddMessage?: (content: string, sender: "user" | "assistant") => void;
 }
 
+interface Problem {
+  id: number;
+  problem: string;
+  solution: string;
+}
+
+interface Quiz {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+}
+
 export default function LearningTabs({ sessionId, topic, onAddMessage }: LearningTabsProps) {
   const [noteText, setNoteText] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-
-  // tRPC hooks
-  const generateProblemsQuery = trpc.learning.generatePracticeProblems.useMutation();
-  const generateQuizQuery = trpc.learning.generateQuiz.useMutation();
-  const createNoteQuery = trpc.learning.createNote.useMutation();
-  const getNotesQuery = trpc.learning.getNotes.useQuery({ sessionId });
-  const deleteNoteQuery = trpc.learning.deleteNote.useMutation();
-  const performanceQuery = trpc.learning.getSessionPerformance.useQuery({ sessionId });
-  const updatePerformanceQuery = trpc.learning.updateSessionPerformance.useMutation();
-
-  // Auto-adjust difficulty based on performance
-  useEffect(() => {
-    if (performanceQuery.data) {
-      setSelectedDifficulty(performanceQuery.data.currentDifficulty);
-    }
-  }, [performanceQuery.data?.currentDifficulty]);
+  const [generatedProblems, setGeneratedProblems] = useState<Problem[]>([]);
+  const [generatedQuizzes, setGeneratedQuizzes] = useState<Quiz[]>([]);
+  const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
+  const [isLoadingProblems, setIsLoadingProblems] = useState(false);
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
 
   const handleGenerateProblems = async () => {
+    setIsLoadingProblems(true);
     try {
-      const result = await generateProblemsQuery.mutateAsync({
-        sessionId,
-        topic,
-        difficulty: selectedDifficulty,
-        count: 3,
+      const response = await fetch("/api/trpc/learning.generatePracticeProblems", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          topic,
+          difficulty: selectedDifficulty,
+          count: 3,
+        }),
       });
 
-      // Add to chat as assistant message
-      if (onAddMessage && result.problems.length > 0) {
-        const problemsText = result.problems
-          .map((p, i) => `**問題 ${i + 1}:**\n${p.problem}\n\n**解答:**\n${p.solution}`)
-          .join("\n\n---\n\n");
-        
-        onAddMessage(
-          `${selectedDifficulty === "easy" ? "簡単" : selectedDifficulty === "medium" ? "普通" : "難しい"}レベルの練習問題を${result.count}問生成しました：\n\n${problemsText}`,
-          "assistant"
-        );
+      const data = await response.json();
+      if (data.result?.data) {
+        const problems = data.result.data.problems || [];
+        setGeneratedProblems(problems);
+
+        if (onAddMessage && problems.length > 0) {
+          const problemsText = problems
+            .map((p: Problem, i: number) => `**問題 ${i + 1}:**\n${p.problem}`)
+            .join("\n\n---\n\n");
+
+          onAddMessage(
+            `${selectedDifficulty === "easy" ? "簡単" : selectedDifficulty === "medium" ? "普通" : "難しい"}レベルの練習問題を${problems.length}問生成しました：\n\n${problemsText}\n\n各問題の下に回答を入力してください。`,
+            "assistant"
+          );
+        }
       }
     } catch (error) {
       console.error("Failed to generate problems:", error);
       if (onAddMessage) {
         onAddMessage("練習問題の生成に失敗しました。", "assistant");
       }
+    } finally {
+      setIsLoadingProblems(false);
     }
   };
 
   const handleGenerateQuiz = async () => {
+    setIsLoadingQuiz(true);
     try {
-      const result = await generateQuizQuery.mutateAsync({
-        sessionId,
-        topic,
-        count: 3,
+      const response = await fetch("/api/trpc/learning.generateQuiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          topic,
+          count: 3,
+        }),
       });
 
-      // Add to chat as assistant message
-      if (onAddMessage && result.quizzes.length > 0) {
-        const quizzesText = result.quizzes
-          .map((q, i) => `**クイズ ${i + 1}:**\n${q.question}`)
-          .join("\n\n---\n\n");
-        
-        onAddMessage(
-          `${result.count}問のクイズを生成しました：\n\n${quizzesText}`,
-          "assistant"
-        );
+      const data = await response.json();
+      if (data.result?.data) {
+        const quizzes = data.result.data.quizzes || [];
+        setGeneratedQuizzes(quizzes);
+
+        if (onAddMessage && quizzes.length > 0) {
+          const quizzesText = quizzes
+            .map((q: Quiz, i: number) => `**クイズ ${i + 1}:**\n${q.question}`)
+            .join("\n\n---\n\n");
+
+          onAddMessage(
+            `${quizzes.length}問のクイズを生成しました：\n\n${quizzesText}\n\n各クイズの選択肢から正解を選んでください。`,
+            "assistant"
+          );
+        }
       }
     } catch (error) {
       console.error("Failed to generate quiz:", error);
       if (onAddMessage) {
         onAddMessage("クイズの生成に失敗しました。", "assistant");
+      }
+    } finally {
+      setIsLoadingQuiz(false);
+    }
+  };
+
+  const handleSubmitAnswer = async (problemId: number) => {
+    const answer = userAnswers[problemId];
+    if (!answer) return;
+
+    const problem = generatedProblems.find((p) => p.id === problemId);
+    if (!problem) return;
+
+    if (onAddMessage) {
+      onAddMessage(`あなたの回答：${answer}`, "user");
+
+      // AI による指導
+      const feedbackPrompt = `以下の数学の問題に対するユーザーの回答を評価してください：\n\n問題：${problem.problem}\n\nユーザーの回答：${answer}\n\n正解：${problem.solution}\n\n回答が正しいかどうかを判定し、詳しい解説と改善点を提供してください。`;
+
+      try {
+        const response = await fetch("/api/trpc/chat.sendMessage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            message: feedbackPrompt,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.result?.data?.response) {
+          onAddMessage(data.result.data.response, "assistant");
+        }
+      } catch (error) {
+        console.error("Failed to get AI feedback:", error);
+      }
+    }
+
+    setUserAnswers({ ...userAnswers, [problemId]: "" });
+  };
+
+  const handleSubmitQuizAnswer = async (quizId: number, selectedOption: string) => {
+    const quiz = generatedQuizzes.find((q) => q.id === quizId);
+    if (!quiz) return;
+
+    const isCorrect = selectedOption === quiz.correctAnswer;
+
+    if (onAddMessage) {
+      onAddMessage(`あなたの回答：${selectedOption}`, "user");
+
+      const feedbackPrompt = `以下のクイズに対するユーザーの回答を評価してください：\n\nクイズ：${quiz.question}\n\nユーザーの選択：${selectedOption}\n\n正解：${quiz.correctAnswer}\n\n${isCorrect ? "正解です！" : "残念ながら不正解です。"} 詳しい解説をお願いします。`;
+
+      try {
+        const response = await fetch("/api/trpc/chat.sendMessage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            message: feedbackPrompt,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.result?.data?.response) {
+          onAddMessage(data.result.data.response, "assistant");
+        }
+      } catch (error) {
+        console.error("Failed to get AI feedback:", error);
       }
     }
   };
@@ -90,16 +182,21 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
     if (!noteText.trim()) return;
 
     try {
-      await createNoteQuery.mutateAsync({
-        sessionId,
-        noteText,
-        category: "general",
+      const response = await fetch("/api/trpc/learning.createNote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          noteText,
+          category: "general",
+        }),
       });
-      setNoteText("");
-      getNotesQuery.refetch();
-      
-      if (onAddMessage) {
-        onAddMessage(`ノートに保存しました：\n\n${noteText}`, "assistant");
+
+      if (response.ok) {
+        setNoteText("");
+        if (onAddMessage) {
+          onAddMessage(`ノートに保存しました：\n\n${noteText}`, "assistant");
+        }
       }
     } catch (error) {
       console.error("Failed to add note:", error);
@@ -109,42 +206,10 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
     }
   };
 
-  const handleDeleteNote = async (noteId: number) => {
-    try {
-      await deleteNoteQuery.mutateAsync({ noteId });
-      getNotesQuery.refetch();
-    } catch (error) {
-      console.error("Failed to delete note:", error);
-    }
-  };
-
-  const handleAnswerCorrect = async (isCorrect: boolean) => {
-    try {
-      const updated = await updatePerformanceQuery.mutateAsync({
-        sessionId,
-        isCorrect,
-      });
-      
-      // Refetch performance data
-      performanceQuery.refetch();
-      
-      if (onAddMessage) {
-        const accuracyText = `正解率: ${updated.accuracyRate}% | 難易度: ${
-          updated.currentDifficulty === "easy" ? "簡単" : 
-          updated.currentDifficulty === "medium" ? "普通" : 
-          "難しい"
-        }`;
-        onAddMessage(accuracyText, "assistant");
-      }
-    } catch (error) {
-      console.error("Failed to update performance:", error);
-    }
-  };
-
   return (
     <div className="w-full">
       <Tabs defaultValue="problems" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="problems" className="flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             <span className="hidden sm:inline">練習問題</span>
@@ -156,10 +221,6 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
           <TabsTrigger value="notes" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">ノート</span>
-          </TabsTrigger>
-          <TabsTrigger value="progress" className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            <span className="hidden sm:inline">進捗</span>
           </TabsTrigger>
         </TabsList>
 
@@ -182,14 +243,41 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
                   </Button>
                 ))}
               </div>
-              <Button 
-                onClick={handleGenerateProblems} 
-                disabled={generateProblemsQuery.isPending}
+              <Button
+                onClick={handleGenerateProblems}
+                disabled={isLoadingProblems}
                 className="w-full"
               >
-                {generateProblemsQuery.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isLoadingProblems && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 練習問題を生成
               </Button>
+
+              {/* Display generated problems */}
+              {generatedProblems.length > 0 && (
+                <div className="space-y-4 mt-4">
+                  {generatedProblems.map((problem) => (
+                    <Card key={problem.id} className="p-4">
+                      <p className="font-semibold mb-2">{problem.problem}</p>
+                      <textarea
+                        value={userAnswers[problem.id] || ""}
+                        onChange={(e) =>
+                          setUserAnswers({ ...userAnswers, [problem.id]: e.target.value })
+                        }
+                        placeholder="あなたの回答を入力..."
+                        className="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                      />
+                      <Button
+                        onClick={() => handleSubmitAnswer(problem.id)}
+                        disabled={!userAnswers[problem.id]?.trim()}
+                        className="w-full"
+                      >
+                        回答を送信
+                      </Button>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -201,15 +289,38 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
               <CardTitle>クイズを生成</CardTitle>
               <CardDescription>理解度を確認するためのクイズを生成します</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={handleGenerateQuiz} 
-                disabled={generateQuizQuery.isPending}
+            <CardContent className="space-y-4">
+              <Button
+                onClick={handleGenerateQuiz}
+                disabled={isLoadingQuiz}
                 className="w-full"
               >
-                {generateQuizQuery.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isLoadingQuiz && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 クイズを生成
               </Button>
+
+              {/* Display generated quizzes */}
+              {generatedQuizzes.length > 0 && (
+                <div className="space-y-4 mt-4">
+                  {generatedQuizzes.map((quiz) => (
+                    <Card key={quiz.id} className="p-4">
+                      <p className="font-semibold mb-3">{quiz.question}</p>
+                      <div className="space-y-2">
+                        {quiz.options.map((option, idx) => (
+                          <Button
+                            key={idx}
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => handleSubmitQuizAnswer(quiz.id, option)}
+                          >
+                            {option}
+                          </Button>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -229,87 +340,13 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
                 className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={4}
               />
-              <Button 
-                onClick={handleAddNote} 
-                disabled={createNoteQuery.isPending || !noteText.trim()}
+              <Button
+                onClick={handleAddNote}
+                disabled={!noteText.trim()}
                 className="w-full"
               >
-                {createNoteQuery.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 ノートに保存
               </Button>
-
-              {/* Display saved notes */}
-              {getNotesQuery.data && getNotesQuery.data.length > 0 && (
-                <div className="space-y-2 mt-4">
-                  <h3 className="font-semibold">保存されたノート</h3>
-                  {getNotesQuery.data.map((note) => (
-                    <Card key={note.id} className="p-3">
-                      <div className="flex justify-between items-start">
-                        <p className="text-sm">{note.noteText}</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteNote(note.id)}
-                        >
-                          削除
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Progress Tab */}
-        <TabsContent value="progress" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>学習進捗</CardTitle>
-              <CardDescription>正解率と難易度の自動調整</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {performanceQuery.data ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-gray-600">正解数</p>
-                      <p className="text-2xl font-bold">{performanceQuery.data.correctAnswers}/{performanceQuery.data.totalProblems}</p>
-                    </div>
-                    <div className="p-4 bg-green-50 rounded-lg">
-                      <p className="text-sm text-gray-600">正解率</p>
-                      <p className="text-2xl font-bold">{performanceQuery.data.accuracyRate}%</p>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-sm text-gray-600">現在の難易度</p>
-                    <p className="text-lg font-semibold">
-                      {performanceQuery.data.currentDifficulty === "easy" ? "簡単" : 
-                       performanceQuery.data.currentDifficulty === "medium" ? "普通" : 
-                       "難しい"}
-                    </p>
-                  </div>
-
-                  {/* Answer buttons for testing */}
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => handleAnswerCorrect(true)} 
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      正解
-                    </Button>
-                    <Button 
-                      onClick={() => handleAnswerCorrect(false)} 
-                      className="flex-1 bg-red-600 hover:bg-red-700"
-                    >
-                      不正解
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-500">進捗データを読み込み中...</p>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
