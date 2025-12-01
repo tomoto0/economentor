@@ -53,11 +53,17 @@ export const chatRouter = router({
           maxTokens: 2048,
         });
 
-        // Extract response
-        const assistantMessage = result.choices[0]?.message?.content || "";
+        if (!result || !result.choices || result.choices.length === 0) {
+          console.error("Invalid LLM response:", result);
+          throw new Error("Failed to get AI response: Invalid LLM response");
+        }
 
-        if (typeof assistantMessage !== "string") {
-          throw new Error("Unexpected response format from LLM");
+        // Extract response
+        const assistantMessage = result.choices[0]?.message?.content;
+
+        if (!assistantMessage || typeof assistantMessage !== "string") {
+          console.error("Invalid response content:", assistantMessage);
+          throw new Error("Failed to get AI response: Empty or invalid response content");
         }
 
         return {

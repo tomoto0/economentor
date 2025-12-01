@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../\_core/trpc";
-import { invokeLLM, Message } from "../\_core/llm";
+import { publicProcedure, router } from "../_core/trpc";
+import { invokeLLM, Message } from "../_core/llm";
 import {
   createPracticeProblem,
   getPracticeProblems,
@@ -60,18 +60,48 @@ Respond ONLY with valid JSON, no other text.`,
           maxTokens: 3000,
         });
 
-        const response = result.choices[0]?.message?.content || "[]";
+        if (!result || !result.choices || result.choices.length === 0) {
+          console.error("Invalid LLM response:", result);
+          // Return empty problems array instead of throwing error
+          return {
+            problems: [],
+            count: 0,
+          };
+        }
 
-        if (typeof response !== "string") {
-          throw new Error("Unexpected response format from LLM");
+        const response = result.choices[0]?.message?.content;
+
+        if (!response || typeof response !== "string") {
+          console.error("Invalid response content:", response);
+          // Return empty problems array instead of throwing error
+          return {
+            problems: [],
+            count: 0,
+          };
         }
 
         // Parse the JSON response
         let problems: Array<{ problem: string; solution: string }> = [];
         try {
-          problems = JSON.parse(response);
+          console.log("LLM Response length:", response.length);
+          console.log("LLM Response (first 300 chars):", response.substring(0, 300));
+          
+          // Try to extract JSON from the response (in case LLM added extra text)
+          const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          const jsonStr = jsonMatch ? jsonMatch[0] : response;
+          console.log("Extracted JSON length:", jsonStr.length);
+          
+          problems = JSON.parse(jsonStr);
+          console.log("Parsed problems count:", problems.length);
+          
+          // Validate that problems is an array
+          if (!Array.isArray(problems)) {
+            console.error("Parsed response is not an array:", problems);
+            problems = [];
+          }
         } catch (e) {
           console.error("Failed to parse problems JSON:", e);
+          console.error("Response preview:", response.substring(0, 500));
           problems = [];
         }
 
@@ -153,10 +183,24 @@ Respond ONLY with valid JSON, no other text.`,
           maxTokens: 3000,
         });
 
-        const response = result.choices[0]?.message?.content || "[]";
+        if (!result || !result.choices || result.choices.length === 0) {
+          console.error("Invalid LLM response:", result);
+          // Return empty quizzes array instead of throwing error
+          return {
+            quizzes: [],
+            count: 0,
+          };
+        }
 
-        if (typeof response !== "string") {
-          throw new Error("Unexpected response format from LLM");
+        const response = result.choices[0]?.message?.content;
+
+        if (!response || typeof response !== "string") {
+          console.error("Invalid response content:", response);
+          // Return empty quizzes array instead of throwing error
+          return {
+            quizzes: [],
+            count: 0,
+          };
         }
 
         // Parse the JSON response
@@ -167,9 +211,18 @@ Respond ONLY with valid JSON, no other text.`,
           explanation: string;
         }> = [];
         try {
-          quizzes = JSON.parse(response);
+          // Try to extract JSON from the response (in case LLM added extra text)
+          const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
+          const jsonStr = jsonMatch ? jsonMatch[0] : response;
+          quizzes = JSON.parse(jsonStr);
+          
+          // Validate that quizzes is an array
+          if (!Array.isArray(quizzes)) {
+            console.error("Parsed response is not an array:", quizzes);
+            quizzes = [];
+          }
         } catch (e) {
-          console.error("Failed to parse quiz JSON:", e);
+          console.error("Failed to parse quiz JSON:", e, "Response:", response);
           quizzes = [];
         }
 
