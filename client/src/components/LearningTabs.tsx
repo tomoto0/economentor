@@ -18,10 +18,11 @@ interface Problem {
 }
 
 interface Quiz {
-  id: number;
+  id?: number;
   question: string;
   options: string[];
-  correctAnswer: string;
+  correctAnswer?: string;
+  explanation?: string;
 }
 
 export default function LearningTabs({ sessionId, topic, onAddMessage }: LearningTabsProps) {
@@ -35,6 +36,7 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
 
   const generateProblems = trpc.learning.generatePracticeProblems.useMutation();
   const generateQuizMutation = trpc.learning.generateQuiz.useMutation();
+  const createNoteMutation = trpc.learning.createNote.useMutation();
 
   const handleGenerateProblems = async () => {
     setIsLoadingProblems(true);
@@ -131,7 +133,7 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
     if (!noteText.trim()) return;
 
     try {
-      await trpc.learning.createNote.mutate({
+      await createNoteMutation.mutateAsync({
         sessionId,
         noteText,
         category: "general",
