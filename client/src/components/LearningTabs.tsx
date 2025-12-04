@@ -28,9 +28,6 @@ interface Quiz {
 export default function LearningTabs({ sessionId, topic, onAddMessage }: LearningTabsProps) {
   const [noteText, setNoteText] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-  const [generatedProblems, setGeneratedProblems] = useState<Problem[]>([]);
-  const [generatedQuizzes, setGeneratedQuizzes] = useState<Quiz[]>([]);
-  const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
   const [isLoadingProblems, setIsLoadingProblems] = useState(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
 
@@ -49,17 +46,15 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
       });
 
       const problems = result.problems || [];
-      setGeneratedProblems(problems);
 
       if (onAddMessage && problems.length > 0) {
-        const problemsText = problems
-          .map((p: Problem, i: number) => `**問題 ${i + 1}:**\n${p.problem}`)
-          .join("\n\n---\n\n");
-
-        onAddMessage(
-          `${selectedDifficulty === "easy" ? "簡単" : selectedDifficulty === "medium" ? "普通" : "難しい"}レベルの練習問題を${problems.length}問生成しました:\n\n${problemsText}\n\n各問題の下に回答を入力してください。`,
-          "assistant"
-        );
+        // 各問題を個別に AI 解答欄に出力
+        problems.forEach((problem: Problem, index: number) => {
+          onAddMessage(
+            `**問題 ${index + 1}:**\n${problem.problem}`,
+            "assistant"
+          );
+        });
       }
     } catch (error) {
       console.error("Failed to generate problems:", error);
@@ -81,17 +76,19 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
       });
 
       const quizzes = result.quizzes || [];
-      setGeneratedQuizzes(quizzes);
 
       if (onAddMessage && quizzes.length > 0) {
-        const quizzesText = quizzes
-          .map((q: Quiz, i: number) => `**クイズ ${i + 1}:**\n${q.question}`)
-          .join("\n\n---\n\n");
-
-        onAddMessage(
-          `${quizzes.length}問のクイズを生成しました:\n\n${quizzesText}\n\n各クイズの選択肢から正解を選んでください。`,
-          "assistant"
-        );
+        // 各クイズを個別に AI 解答欄に出力
+        quizzes.forEach((quiz: Quiz, index: number) => {
+          const optionsText = quiz.options
+            .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`)
+            .join("\n");
+          
+          onAddMessage(
+            `**クイズ ${index + 1}:**\n${quiz.question}\n\n${optionsText}`,
+            "assistant"
+          );
+        });
       }
     } catch (error) {
       console.error("Failed to generate quiz:", error);
@@ -100,32 +97,6 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
       }
     } finally {
       setIsLoadingQuiz(false);
-    }
-  };
-
-  const handleSubmitAnswer = async (problemIndex: number) => {
-    const answer = userAnswers[problemIndex];
-    if (!answer) return;
-
-    const problem = generatedProblems[problemIndex];
-    if (!problem) return;
-
-    if (onAddMessage) {
-      onAddMessage(`あなたの回答: ${answer}`, "user");
-      onAddMessage(`正解: ${problem.solution}`, "assistant");
-    }
-  };
-
-  const handleSelectQuizAnswer = (quizIndex: number, selectedOption: string) => {
-    const quiz = generatedQuizzes[quizIndex];
-    if (!quiz) return;
-
-    const isCorrect = selectedOption === quiz.correctAnswer;
-    if (onAddMessage) {
-      onAddMessage(
-        `あなたの回答: ${selectedOption}${isCorrect ? " (正解)" : " (不正解)"}`,
-        "user"
-      );
     }
   };
 
@@ -212,33 +183,9 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
                   )}
                 </Button>
               </div>
-
-              {/* Display generated problems */}
-              {generatedProblems.length > 0 && (
-                <div className="space-y-4 mt-4">
-                  {generatedProblems.map((problem, index) => (
-                    <Card key={index} className="p-4">
-                      <p className="font-semibold mb-2">{problem.problem}</p>
-                      <textarea
-                        value={userAnswers[index] || ""}
-                        onChange={(e) =>
-                          setUserAnswers({ ...userAnswers, [index]: e.target.value })
-                        }
-                        placeholder="あなたの回答を入力..."
-                        className="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        rows={3}
-                      />
-                      <Button
-                        onClick={() => handleSubmitAnswer(index)}
-                        disabled={!userAnswers[index]?.trim()}
-                        className="w-full"
-                      >
-                        回答を送信
-                      </Button>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              <p className="text-sm text-gray-600">
+                「練習問題を生成」をクリックすると、AI が生成した問題が下の会話欄に表示されます。
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -269,29 +216,9 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
                   "クイズを生成"
                 )}
               </Button>
-
-              {/* Display generated quizzes */}
-              {generatedQuizzes.length > 0 && (
-                <div className="space-y-4 mt-4">
-                  {generatedQuizzes.map((quiz, index) => (
-                    <Card key={index} className="p-4">
-                      <p className="font-semibold mb-3">{quiz.question}</p>
-                      <div className="space-y-2">
-                        {quiz.options.map((option, optIndex) => (
-                          <Button
-                            key={optIndex}
-                            variant="outline"
-                            className="w-full justify-start text-left"
-                            onClick={() => handleSelectQuizAnswer(index, option)}
-                          >
-                            {option}
-                          </Button>
-                        ))}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              <p className="text-sm text-gray-600">
+                「クイズを生成」をクリックすると、AI が生成したクイズが下の会話欄に表示されます。
+              </p>
             </div>
           </CardContent>
         </Card>
