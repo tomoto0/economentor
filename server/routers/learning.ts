@@ -37,17 +37,23 @@ export const learningRouter = router({
       try {
         const chatHistory = await getChatLogs(input.sessionId);
 
+        const systemPrompt = `You are a mathematics educator. Generate exactly ${input.count} practice problems for the topic "${input.topic}" at ${input.difficulty || "medium"} difficulty level.
+
+For each problem, provide the problem statement and solution with step-by-step explanation. Include LaTeX math notation where appropriate.
+
+You MUST respond with ONLY a valid JSON array. Each object must have exactly these two fields:
+- "problem": the problem statement (string)
+- "solution": the step-by-step solution (string)
+
+Example:
+[{"problem":"Find the derivative of x^2","solution":"Using the power rule: d/dx(x^2) = 2x"}]
+
+Respond with ONLY the JSON array, no additional text.`;
+
         const messages: Message[] = [
           {
             role: "system",
-            content: `You are a mathematics educator. Generate ${input.count} practice problems for the topic "${input.topic}" at ${input.difficulty || "medium"} difficulty level.
-
-For each problem, provide:
-1. The problem statement (clear and specific)
-2. The solution with step-by-step explanation
-
-Format your response as JSON array with objects containing "problem" and "solution" fields.
-Respond ONLY with valid JSON, no other text.`,
+            content: systemPrompt,
           },
           ...chatHistory.map((log) => ({
             role: log.sender === "user" ? ("user" as const) : ("assistant" as const),
@@ -62,7 +68,6 @@ Respond ONLY with valid JSON, no other text.`,
 
         if (!result || !result.choices || result.choices.length === 0) {
           console.error("Invalid LLM response:", result);
-          // Return empty problems array instead of throwing error
           return {
             problems: [],
             count: 0,
@@ -73,7 +78,6 @@ Respond ONLY with valid JSON, no other text.`,
 
         if (!response || typeof response !== "string") {
           console.error("Invalid response content:", response);
-          // Return empty problems array instead of throwing error
           return {
             problems: [],
             count: 0,
@@ -86,7 +90,7 @@ Respond ONLY with valid JSON, no other text.`,
           console.log("LLM Response length:", response.length);
           console.log("LLM Response (first 300 chars):", response.substring(0, 300));
           
-          // Try to extract JSON from the response (in case LLM added extra text)
+          // Try to extract JSON from the response
           const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
           const jsonStr = jsonMatch ? jsonMatch[0] : response;
           console.log("Extracted JSON length:", jsonStr.length);
@@ -94,7 +98,6 @@ Respond ONLY with valid JSON, no other text.`,
           problems = JSON.parse(jsonStr);
           console.log("Parsed problems count:", problems.length);
           
-          // Validate that problems is an array
           if (!Array.isArray(problems)) {
             console.error("Parsed response is not an array:", problems);
             problems = [];
@@ -158,19 +161,22 @@ Respond ONLY with valid JSON, no other text.`,
       try {
         const chatHistory = await getChatLogs(input.sessionId);
 
+        const systemPrompt = `You are a mathematics educator. Create ${input.count} multiple-choice quiz questions about "${input.topic}".
+
+For each question, provide: (1) The question text, (2) Four options (A, B, C, D), (3) The correct answer (A, B, C, or D), (4) Brief explanation.
+
+You MUST respond with ONLY a valid JSON array. Each object must have exactly these fields:
+- "question": the question text (string)
+- "options": array of 4 strings (the options A, B, C, D)
+- "correctAnswer": the correct answer (A, B, C, or D)
+- "explanation": brief explanation (string)
+
+Respond with ONLY the JSON array, no additional text.`;
+
         const messages: Message[] = [
           {
             role: "system",
-            content: `You are a mathematics educator. Create ${input.count} multiple-choice quiz questions about "${input.topic}".
-
-For each question, provide:
-1. The question text
-2. Four options (A, B, C, D)
-3. The correct answer (A, B, C, or D)
-4. Brief explanation of why it's correct
-
-Format your response as JSON array with objects containing "question", "options" (array of 4 strings), "correctAnswer" (A/B/C/D), and "explanation" fields.
-Respond ONLY with valid JSON, no other text.`,
+            content: systemPrompt,
           },
           ...chatHistory.map((log) => ({
             role: log.sender === "user" ? ("user" as const) : ("assistant" as const),
@@ -185,7 +191,6 @@ Respond ONLY with valid JSON, no other text.`,
 
         if (!result || !result.choices || result.choices.length === 0) {
           console.error("Invalid LLM response:", result);
-          // Return empty quizzes array instead of throwing error
           return {
             quizzes: [],
             count: 0,
@@ -196,7 +201,6 @@ Respond ONLY with valid JSON, no other text.`,
 
         if (!response || typeof response !== "string") {
           console.error("Invalid response content:", response);
-          // Return empty quizzes array instead of throwing error
           return {
             quizzes: [],
             count: 0,
@@ -211,12 +215,10 @@ Respond ONLY with valid JSON, no other text.`,
           explanation: string;
         }> = [];
         try {
-          // Try to extract JSON from the response (in case LLM added extra text)
           const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
           const jsonStr = jsonMatch ? jsonMatch[0] : response;
           quizzes = JSON.parse(jsonStr);
           
-          // Validate that quizzes is an array
           if (!Array.isArray(quizzes)) {
             console.error("Parsed response is not an array:", quizzes);
             quizzes = [];
