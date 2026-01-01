@@ -1,21 +1,56 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM, Message } from "../_core/llm";
-import { getChatLogs } from "../db";
+import { getChatLogs, updateSessionPerformance } from "../db";
 
 const SYSTEM_PROMPT = `You are Math Mentor, an expert mathematics tutor. Your role is to help students understand mathematical concepts clearly and comprehensively.
 
 Guidelines:
-1. Provide clear, step-by-step explanations
-2. Use appropriate mathematical notation and formulas
-3. Include practical examples when relevant
-4. Break down complex concepts into simpler parts
-5. Encourage understanding over memorization
-6. Respond in Japanese when the user communicates in Japanese
-7. Format your responses with proper markdown for readability
-8. Include diagrams or visual descriptions when helpful
+1. Provide clear, step-by-step explanations using simple text
+2. IMPORTANT: Do NOT use mathematical notation, LaTeX, or special mathematical symbols (like $, \\, ^, _, etc.) in your regular explanations
+3. When explaining mathematical concepts, use words instead of symbols. For example:
+   - Instead of "f(x) = x^2", write "the function f of x equals x squared"
+   - Instead of "dy/dx", write "the derivative of y with respect to x"
+   - Instead of "∫", write "the integral of"
+4. Include practical examples when relevant
+5. Break down complex concepts into simpler parts
+6. Encourage understanding over memorization
+7. Respond in Japanese when the user communicates in Japanese
+8. Format your responses with proper markdown for readability
+9. Use clear, descriptive language to explain mathematical ideas
+10. When the user asks for graphs or visualizations, provide data in a structured format (JSON) that can be used to generate charts
 
-When the user asks for graphs or visualizations, provide data in a structured format (JSON) that can be used to generate charts.`;
+Remember: Your goal is to make mathematics accessible and understandable through clear language, not through mathematical notation.`;
+
+// Helper function to detect if a user answer is correct
+function detectAnswerCorrectness(userMessage: string, aiResponse: string): boolean | null {
+  const lowerUserMsg = userMessage.toLowerCase();
+  const lowerAiResponse = aiResponse.toLowerCase();
+  
+  // Check for explicit correctness indicators in AI response
+  const correctPatterns = [
+    /正解です|正しい|その通り|完璧|素晴らしい|excellent|correct|that's right|well done/i,
+  ];
+  
+  const incorrectPatterns = [
+    /不正解|間違い|残念|incorrect|that's not right|not quite|let me help you|let me explain/i,
+  ];
+  
+  for (const pattern of correctPatterns) {
+    if (pattern.test(aiResponse)) {
+      return true;
+    }
+  }
+  
+  for (const pattern of incorrectPatterns) {
+    if (pattern.test(aiResponse)) {
+      return false;
+    }
+  }
+  
+  // If no explicit indicator, return null (no answer detected)
+  return null;
+}
 
 export const chatRouter = router({
   // Send a message and get AI response
@@ -66,14 +101,106 @@ export const chatRouter = router({
           throw new Error("Failed to get AI response: Empty or invalid response content");
         }
 
+        // Detect if this is an answer evaluation
+        const isAnswerCorrect = detectAnswerCorrectness(input.message, assistantMessage);
+        
+        // If an answer was detected, update session performance
+        if (isAnswerCorrect !== null) {
+          try {
+            await updateSessionPerformance(input.sessionId, isAnswerCorrect);
+          } catch (error) {
+            console.error("Failed to update session performance:", error);
+            // Continue anyway, don't fail the response
+          }
+        }
+        
         return {
           response: assistantMessage,
           contentType: "markdown" as const,
+          isAnswerEvaluation: isAnswerCorrect !== null,
+          isCorrect: isAnswerCorrect,
         };
       } catch (error) {
         console.error("Failed to get AI response:", error);
         throw new Error(
           `Failed to get AI response: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
+      }
+    }),
+
+  // Evaluate a quiz/practice answer
+  evaluateAnswer: publicProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        question: z.string(),
+        userAnswer: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      try {
+        // Get chat history for context
+        const chatHistory = await getChatLogs(input.sessionId);
+
+        const systemPrompt = `You are a mathematics educator evaluating student answers.
+
+Evaluate the student's answer to the following question:
+Question: ${input.question}
+Student's Answer: ${input.userAnswer}
+
+Respond with:
+1. Whether the answer is correct (start with "正解です" for correct or "不正解です" for incorrect)
+2. Brief explanation of why it's correct or incorrect
+3. If incorrect, provide guidance on the correct approach
+
+Be encouraging and supportive in your response.`;
+
+        const messages: Message[] = [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          ...chatHistory.map((log) => ({
+            role: log.sender === "user" ? ("user" as const) : ("assistant" as const),
+            content: log.content,
+          })),
+        ];
+
+        const result = await invokeLLM({
+          messages,
+          maxTokens: 1024,
+        });
+
+        if (!result || !result.choices || result.choices.length === 0) {
+          throw new Error("Failed to get AI evaluation");
+        }
+
+        const evaluation = result.choices[0]?.message?.content;
+
+        if (!evaluation || typeof evaluation !== "string") {
+          throw new Error("Invalid evaluation response");
+        }
+
+        // Detect correctness from evaluation
+        const isCorrect = detectAnswerCorrectness(input.userAnswer, evaluation);
+
+        // Update session performance
+        if (isCorrect !== null) {
+          try {
+            await updateSessionPerformance(input.sessionId, isCorrect);
+          } catch (error) {
+            console.error("Failed to update session performance:", error);
+          }
+        }
+
+        return {
+          evaluation,
+          isCorrect: isCorrect ?? false,
+        };
+      } catch (error) {
+        console.error("Failed to evaluate answer:", error);
+        throw new Error(
+          `Failed to evaluate answer: ${error instanceof Error ? error.message : "Unknown error"}`
         );
       }
     }),

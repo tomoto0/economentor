@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, HelpCircle, FileText, Loader2, TrendingUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { z } from "zod";
 
 interface LearningTabsProps {
   sessionId: string;
@@ -34,6 +35,13 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
   const generateProblems = trpc.learning.generatePracticeProblems.useMutation();
   const generateQuizMutation = trpc.learning.generateQuiz.useMutation();
   const createNoteMutation = trpc.learning.createNote.useMutation();
+  const updatePerformanceMutation = trpc.learning.updateSessionPerformance.useMutation();
+  
+  // Query for session performance
+  const { data: performance, refetch: refetchPerformance } = trpc.learning.getSessionPerformance.useQuery(
+    { sessionId },
+    { refetchInterval: 1000 } // Refetch every second to show real-time updates
+  );
 
   const handleGenerateProblems = async () => {
     setIsLoadingProblems(true);
@@ -81,7 +89,7 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
         // 各クイズを個別に AI 解答欄に出力
         quizzes.forEach((quiz: Quiz, index: number) => {
           const optionsText = quiz.options
-            .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`)
+            .map((opt, i) => `(${String.fromCharCode(65 + i)}) ${opt}`)
             .join("\n");
           
           onAddMessage(
@@ -118,6 +126,27 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
       console.error("Failed to create note:", error);
     }
   };
+
+  // Function to update performance after answering
+  const updatePerformanceAfterAnswer = async (isCorrect: boolean) => {
+    try {
+      await updatePerformanceMutation.mutateAsync({
+        sessionId,
+        isCorrect,
+      });
+      // Refetch performance data
+      await refetchPerformance();
+    } catch (error) {
+      console.error("Failed to update performance:", error);
+    }
+  };
+
+  // Expose the update function to parent component
+  useEffect(() => {
+    if (onAddMessage && typeof (onAddMessage as any).updatePerformance === "undefined") {
+      (onAddMessage as any).updatePerformance = updatePerformanceAfterAnswer;
+    }
+  }, []);
 
   return (
     <Tabs defaultValue="practice" className="w-full">
@@ -266,11 +295,43 @@ export default function LearningTabs({ sessionId, topic, onAddMessage }: Learnin
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 text-center">
-              <p className="text-gray-500">
-                まだ成績データはありません。練習問題やクイズに挑戦してください。
-              </p>
-            </div>
+            {performance && performance.totalProblems > 0 ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-3xl font-bold text-blue-600">{performance.totalProblems}</div>
+                    <div className="text-sm text-gray-600 mt-2">解いた問題数</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-3xl font-bold text-green-600">{performance.correctAnswers}</div>
+                    <div className="text-sm text-gray-600 mt-2">正解数</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-3xl font-bold text-purple-600">{performance.accuracyRate}%</div>
+                    <div className="text-sm text-gray-600 mt-2">正答率</div>
+                  </div>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="text-sm font-medium text-gray-700 mb-2">現在の難易度</div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {performance.currentDifficulty === "easy" && "簡単"}
+                    {performance.currentDifficulty === "medium" && "普通"}
+                    {performance.currentDifficulty === "hard" && "難しい"}
+                  </div>
+                </div>
+                <div className="p-4 bg-blue-100 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    💡 ヒント: 正答率が高い場合は、難易度を上げてみてください。難しい問題に挑戦することで、さらに理解を深めることができます。
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-center">
+                <p className="text-gray-500">
+                  まだ成績データはありません。練習問題やクイズに挑戦してください。
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

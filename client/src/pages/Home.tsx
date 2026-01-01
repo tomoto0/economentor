@@ -47,6 +47,7 @@ export default function Home() {
   const createSessionMutation = trpc.sessions.create.useMutation();
   const addMessageMutation = trpc.sessions.addMessage.useMutation();
   const sendMessageMutation = trpc.chat.sendMessage.useMutation();
+  const updatePerformanceMutation = trpc.learning.updateSessionPerformance.useMutation();
   const getChatLogsQuery = trpc.sessions.getChatLogs.useQuery;
 
   // Initialize session from localStorage
@@ -183,6 +184,8 @@ export default function Home() {
       // Get AI response
       let assistantContent = "申し訳ありません。AI応答の取得に失敗しました。";
       let assistantContentType: "text" | "markdown" = "text";
+      let isAnswerEvaluation = false;
+      let isCorrect = false;
 
       try {
         const aiResponse = await sendMessageMutation.mutateAsync({
@@ -192,6 +195,8 @@ export default function Home() {
 
         assistantContent = aiResponse.response || assistantContent;
         assistantContentType = aiResponse.contentType || "markdown";
+        isAnswerEvaluation = aiResponse.isAnswerEvaluation || false;
+        isCorrect = aiResponse.isCorrect || false;
       } catch (error) {
         console.error("Failed to get AI response:", error);
       }
@@ -213,6 +218,18 @@ export default function Home() {
         });
       } catch (error) {
         console.error("Failed to save assistant message:", error);
+      }
+
+      // If the AI detected this as an answer evaluation, update performance
+      if (isAnswerEvaluation && sessionId) {
+        try {
+          await updatePerformanceMutation.mutateAsync({
+            sessionId,
+            isCorrect,
+          });
+        } catch (error) {
+          console.error("Failed to update performance:", error);
+        }
       }
     } catch (error) {
       console.error("Failed to send message:", error);
