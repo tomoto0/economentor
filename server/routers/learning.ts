@@ -163,12 +163,12 @@ Respond with ONLY the JSON array, no additional text.`;
 
         const systemPrompt = `You are a mathematics educator. Create ${input.count} multiple-choice quiz questions about "${input.topic}".
 
-For each question, provide: (1) The question text, (2) Four options labeled (A), (B), (C), (D), (3) The correct answer ((A), (B), (C), or (D)), (4) Brief explanation.
+For each question, provide: (1) The question text, (2) Four options WITHOUT labels, (3) The correct answer as index (0, 1, 2, or 3), (4) Brief explanation.
 
 You MUST respond with ONLY a valid JSON array. Each object must have exactly these fields:
 - "question": the question text (string)
-- "options": array of 4 strings (the options labeled (A), (B), (C), (D))
-- "correctAnswer": the correct answer ((A), (B), (C), or (D))
+- "options": array of 4 strings (the option texts WITHOUT any labels)
+- "correctAnswer": the index of correct answer (0, 1, 2, or 3)
 - "explanation": brief explanation (string)
 
 Respond with ONLY the JSON array, no additional text.`;
