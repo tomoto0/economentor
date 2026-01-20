@@ -272,10 +272,10 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-3xl">Math Mentor</CardTitle>
-            <CardDescription>
+            <h1 className="text-3xl font-bold tracking-tight">Math Mentor</h1>
+            <h2 className="text-sm text-muted-foreground">
               数学の専門的なトピックをAIと対話しながら学習します
-            </CardDescription>
+            </h2>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -329,7 +329,7 @@ export default function Home() {
       <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Math Mentor</h1>
-          <p className="text-sm text-gray-600">{topic}</p>
+          <h2 className="text-sm text-gray-600">{topic}</h2>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportAsText}>
