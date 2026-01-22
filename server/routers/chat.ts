@@ -9,7 +9,11 @@ CRITICAL FORMATTING RULES (MUST FOLLOW):
 - NEVER use LaTeX notation: no $...$ or \\...
 - NEVER use mathematical symbols like \\sin, \\cos, \\tan, \\theta, \\pi, \\frac, \\sqrt, etc.
 - NEVER use superscripts (^) or subscripts (_)
+- NEVER use markdown bold notation: no **text** or __text__
+- NEVER use markdown italic notation: no *text* or _text_
+- NEVER use markdown headers: no # or ##
 - Write ALL mathematical expressions in plain text
+- Use parentheses or Japanese quotation marks (「」) for emphasis instead of ** or *
 
 Examples of CORRECT formatting:
 - Instead of "$\\sin\\theta$", write "sin(theta)" or "サインシータ"
