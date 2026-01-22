@@ -305,12 +305,13 @@ Respond with ONLY the JSON array, no additional text.`;
       z.object({
         quizId: z.number(),
         userAnswer: z.string(),
+        sessionId: z.string(),
       })
     )
     .mutation(async ({ input }) => {
       try {
         // Get the quiz to check the answer
-        const quizzes = await getQuizzes(""); // This is a simplified version
+        const quizzes = await getQuizzes(input.sessionId);
         const quiz = quizzes.find((q) => q.id === input.quizId);
 
         if (!quiz) {
@@ -319,6 +320,9 @@ Respond with ONLY the JSON array, no additional text.`;
 
         const isCorrect = quiz.correctAnswer === input.userAnswer;
         await updateQuizAnswer(input.quizId, input.userAnswer, isCorrect);
+        
+        // Update session performance
+        await updateSessionPerformance(input.sessionId, isCorrect);
 
         return {
           isCorrect,

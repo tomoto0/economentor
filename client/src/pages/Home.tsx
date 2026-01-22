@@ -220,17 +220,8 @@ export default function Home() {
         console.error("Failed to save assistant message:", error);
       }
 
-      // If the AI detected this as an answer evaluation, update performance
-      if (isAnswerEvaluation && sessionId) {
-        try {
-          await updatePerformanceMutation.mutateAsync({
-            sessionId,
-            isCorrect,
-          });
-        } catch (error) {
-          console.error("Failed to update performance:", error);
-        }
-      }
+      // Note: Performance is already updated on the backend side in chat.ts
+      // No need to call updatePerformanceMutation here to avoid double counting
     } catch (error) {
       console.error("Failed to send message:", error);
     } finally {

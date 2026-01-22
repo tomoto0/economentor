@@ -34,27 +34,62 @@ Remember: Your goal is to make mathematics accessible and understandable through
 
 // Helper function to detect if a user answer is correct
 function detectAnswerCorrectness(userMessage: string, aiResponse: string): boolean | null {
-  const lowerUserMsg = userMessage.toLowerCase();
-  const lowerAiResponse = aiResponse.toLowerCase();
-  
   // Check for explicit correctness indicators in AI response
-  const correctPatterns = [
-    /正解です|正しい|その通り|完璧|素晴らしい|excellent|correct|that's right|well done/i,
+  // Order matters: check incorrect patterns FIRST to avoid false positives
+  
+  // Incorrect patterns - check these first
+  const incorrectPatterns = [
+    /不正解/i,
+    /間違い/i,
+    /残念/i,
+    /惜しい/i,
+    /もう少し/i,
+    /違います/i,
+    /正しくありません/i,
+    /正しくない/i,
+    /誤り/i,
+    /違って/i,
+    /ではありません/i,
+    /ではない/i,
+    /ちょっと違/i,
+    /実は/i,
+    /正解は/i,
+    /incorrect/i,
+    /wrong/i,
+    /not correct/i,
+    /not right/i,
+    /not quite/i,
+    /unfortunately/i,
   ];
   
-  const incorrectPatterns = [
-    /不正解|間違い|残念|incorrect|that's not right|not quite|let me help you|let me explain/i,
+  for (const pattern of incorrectPatterns) {
+    if (pattern.test(aiResponse)) {
+      return false;
+    }
+  }
+  
+  // Correct patterns - check these after incorrect patterns
+  const correctPatterns = [
+    /正解です/i,
+    /正しいです/i,
+    /その通り/i,
+    /完璧/i,
+    /素晴らしい/i,
+    /よくできました/i,
+    /お見事/i,
+    /正解！/i,
+    /合っています/i,
+    /excellent/i,
+    /correct/i,
+    /that's right/i,
+    /well done/i,
+    /good job/i,
+    /exactly/i,
   ];
   
   for (const pattern of correctPatterns) {
     if (pattern.test(aiResponse)) {
       return true;
-    }
-  }
-  
-  for (const pattern of incorrectPatterns) {
-    if (pattern.test(aiResponse)) {
-      return false;
     }
   }
   
