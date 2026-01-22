@@ -39,14 +39,25 @@ export const learningRouter = router({
 
         const systemPrompt = `You are a mathematics educator. Generate exactly ${input.count} practice problems for the topic "${input.topic}" at ${input.difficulty || "medium"} difficulty level.
 
-For each problem, provide the problem statement and solution with step-by-step explanation. Include LaTeX math notation where appropriate.
+IMPORTANT FORMATTING RULES:
+- Do NOT use LaTeX notation (no $...$ or \\...)
+- Do NOT use mathematical symbols like \\cos, \\sin, \\theta, \\pi, etc.
+- Write all mathematical expressions in plain text
+- Examples of correct formatting:
+  - Instead of "$\\cos\\theta$", write "cos(theta)" or "コサインシータ"
+  - Instead of "$x^2$", write "xの2乗" or "x squared"
+  - Instead of "$\\frac{1}{2}$", write "1/2" or "2分の1"
+  - Instead of "$\\sqrt{x}$", write "xの平方根" or "sqrt(x)"
+  - Instead of "$\\pi$", write "円周率π" or "pi"
+
+For each problem, provide the problem statement and solution with step-by-step explanation in plain text.
 
 You MUST respond with ONLY a valid JSON array. Each object must have exactly these two fields:
-- "problem": the problem statement (string)
-- "solution": the step-by-step solution (string)
+- "problem": the problem statement (string, plain text only)
+- "solution": the step-by-step solution (string, plain text only)
 
 Example:
-[{"problem":"Find the derivative of x^2","solution":"Using the power rule: d/dx(x^2) = 2x"}]
+[{"problem":"xの2乗を微分してください","solution":"べき乗の法則を使って: d/dx(xの2乗) = 2x"}]
 
 Respond with ONLY the JSON array, no additional text.`;
 
@@ -163,13 +174,24 @@ Respond with ONLY the JSON array, no additional text.`;
 
         const systemPrompt = `You are a mathematics educator. Create ${input.count} multiple-choice quiz questions about "${input.topic}".
 
-For each question, provide: (1) The question text, (2) Four options WITHOUT labels, (3) The correct answer as index (0, 1, 2, or 3), (4) Brief explanation.
+IMPORTANT FORMATTING RULES:
+- Do NOT use LaTeX notation (no $...$ or \\...)
+- Do NOT use mathematical symbols like \\cos, \\sin, \\theta, \\pi, etc.
+- Write all mathematical expressions in plain text
+- Examples of correct formatting:
+  - Instead of "$\\cos\\theta$", write "cos(theta)" or "コサインシータ"
+  - Instead of "$x^2$", write "xの2乗" or "x squared"
+  - Instead of "$\\frac{1}{2}$", write "1/2" or "2分の1"
+  - Instead of "$\\sqrt{x}$", write "xの平方根" or "sqrt(x)"
+  - Instead of "$\\pi$", write "円周率π" or "pi"
+
+For each question, provide: (1) The question text in plain text, (2) Four options WITHOUT labels in plain text, (3) The correct answer as index (0, 1, 2, or 3), (4) Brief explanation in plain text.
 
 You MUST respond with ONLY a valid JSON array. Each object must have exactly these fields:
-- "question": the question text (string)
-- "options": array of 4 strings (the option texts WITHOUT any labels)
+- "question": the question text (string, plain text only)
+- "options": array of 4 strings (the option texts WITHOUT any labels, plain text only)
 - "correctAnswer": the index of correct answer (0, 1, 2, or 3)
-- "explanation": brief explanation (string)
+- "explanation": brief explanation (string, plain text only)
 
 Respond with ONLY the JSON array, no additional text.`;
 
