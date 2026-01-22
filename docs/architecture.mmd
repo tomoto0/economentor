@@ -1,0 +1,71 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4f46e5', 'lineColor': '#6366f1', 'secondaryColor': '#f0f9ff', 'tertiaryColor': '#f8fafc'}}}%%
+flowchart TB
+    subgraph Client["クライアント層"]
+        direction TB
+        UI["React + TypeScript<br/>UI コンポーネント"]
+        Home["Home Page<br/>トピック選択"]
+        Chat["AI Chat Box<br/>対話インターフェース"]
+        Tabs["Learning Tabs<br/>練習・クイズ・ノート・成績"]
+        TRPC_C["tRPC Client<br/>型安全な API 通信"]
+        
+        UI --> Home
+        UI --> Chat
+        UI --> Tabs
+        Home --> TRPC_C
+        Chat --> TRPC_C
+        Tabs --> TRPC_C
+    end
+    
+    subgraph Server["API 層"]
+        direction TB
+        Express["Express Server"]
+        TRPC_S["tRPC Server"]
+        
+        subgraph Routers["ルーター"]
+            Auth["Auth Router<br/>認証"]
+            Sessions["Sessions Router<br/>セッション管理"]
+            ChatR["Chat Router<br/>AI チャット"]
+            Learning["Learning Router<br/>学習機能"]
+        end
+        
+        Express --> TRPC_S
+        TRPC_S --> Auth
+        TRPC_S --> Sessions
+        TRPC_S --> ChatR
+        TRPC_S --> Learning
+    end
+    
+    subgraph External["外部サービス"]
+        LLM["Manus LLM API<br/>AI 処理"]
+        OAuth["Manus OAuth<br/>認証サービス"]
+        S3["S3 Storage<br/>ファイルストレージ"]
+    end
+    
+    subgraph Data["データ層"]
+        DB[(MySQL / TiDB<br/>データベース)]
+        
+        subgraph Tables["テーブル"]
+            Users["users"]
+            Sessions_T["learning_sessions"]
+            ChatLogs["chat_logs"]
+            Practice["practice_problems"]
+            Quizzes["quizzes"]
+            Notes["learning_notes"]
+            Performance["session_performance"]
+        end
+        
+        DB --> Users
+        DB --> Sessions_T
+        DB --> ChatLogs
+        DB --> Practice
+        DB --> Quizzes
+        DB --> Notes
+        DB --> Performance
+    end
+    
+    TRPC_C <-->|"HTTP/JSON"| TRPC_S
+    ChatR --> LLM
+    Learning --> LLM
+    Auth --> OAuth
+    Server --> DB
+    Server --> S3
